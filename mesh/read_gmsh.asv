@@ -1,0 +1,93 @@
+%%% CANNOT HANDLE HIGHER ORDER ELEMENT EDGES AS EDGE ID WILL NOT BE 1. HAVE
+%%% TO CHANGE THAT WHEN LEARN HOW TO MAKE THOSE HIGHER ORDER ELEMENTS.
+
+function mesh = read_gmsh(filename)
+    % READ_GMSH Parses a Format 2.2 .msh file and extracts physical boundaries.
+    
+    fid = fopen(filename, 'r');
+    
+    mesh.nodes = [];
+    mesh.tri3 = []; mesh.quad4 = [];
+    mesh.tri6 = []; mesh.quad9 = [];
+    mesh.boundaries = struct(); 
+
+    physicalNames = containers.Map('KeyType', 'double', 'ValueType', 'char');
+
+    %% --- PASS 1: Extract Physical Names ---
+    % Pointwise puts $PhysicalNames at the bottom of the file!
+    while ~feof(fid)
+        line = strtrim(fgetl(fid));
+        if strcmp(line, '$PhysicalNames')
+            numNames = sscanf(fgetl(fid), '%d');
+            for i = 1:numNames
+                data = textscan(fgetl(fid), '%d %d %q'); 
+                physId = double(data{2}); 
+                name = data{3}{1};
+                physicalNames(physId) = name;
+                
+                % Initialize boundary struct arrays
+                mesh.boundaries.(name).nodes = [];
+                mesh.boundaries.(name).edges = [];
+            end
+            break; % Found the names, exit pass 1
+        end
+    end
+    
+    %% --- PASS 2: Read Nodes and Elements ---
+    frewind(fid); % Reset pointer to start of file
+    
+    while ~feof(fid)
+        line = strtrim(fgetl(fid));
+        
+        if strcmp(line, '$Nodes')
+            numNodes = sscanf(fgetl(fid), '%d');
+            mesh.nodes = zeros(numNodes, 3);
+            for i = 1:numNodes
+                data = sscanf(fgetl(fid), '%f');
+                nodeId = data(1);
+                mesh.nodes(nodeId, :) = data(2:4)';
+            end
+        end
+
+        if strcmp(line, '$Elements')
+            numElem = sscanf(fgetl(fid), '%d');
+            for i = 1:numElem
+                data = sscanf(fgetl(fid), '%d')';
+                elemType = data(2);
+                numTags = data(3);
+                physGrp = data(4); 
+                
+                nodeStartIdx = 3 + numTags + 1; 
+                conn = data(nodeStartIdx:end);
+
+                switch elemType
+                    switch elemType
+                    case {1, 8} % 2-node (1) AND 3-node (8) line elements
+                        if isKey(physicalNames, physGrp)
+                            name = physicalNames(physGrp);
+                            
+                            % --- THE QUADRATIC FIX ---
+                            if elemType == 8
+                                % Pointwise exports: [Start, Middle, End]
+                                % FEM Math expects:  [Start, End, Middle]
+                                conn = [conn(1), conn(3), conn(2)];
+                            end
+                            % -------------------------
+                            
+                            mesh.boundaries.(name).edges = [mesh.boundaries.(name).edges; conn];
+                            mesh.boundaries.(name).nodes = unique([mesh.boundaries.(name).nodes, conn]);
+                        end
+                    case 2 % tri3
+                        mesh.tri3 = [mesh.tri3; conn];
+                    case 3 % quad4
+                        mesh.quad4 = [mesh.quad4; conn];
+                    case 9 % tri6
+                        mesh.tri6 = [mesh.tri6; conn];
+                    case 10 % quad9
+                        mesh.quad9 = [mesh.quad9; conn];
+                end
+            end
+        end
+    end
+    fclose(fid);
+end

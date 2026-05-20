@@ -1,0 +1,6 @@
+read_gmsh.m (Parser)
+
+build_connectivity.m (Element-to-node mapping)
+
+dof_map.m (Assigns Equation IDs to nodes)
+update_coordinates.m
