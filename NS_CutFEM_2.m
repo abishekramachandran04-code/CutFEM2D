@@ -36,7 +36,7 @@ edof_cut = element_dof_map(conn_cut, dof_cut);
 
 %% ============ PHYSICS ============
 fprintf('Setting up Physics...\n');
-Re_D = 100; H = 0.41; U_max = 1.5; U_mean = (2/3)*U_max;
+Re_D = 20; H = 0.41; U_max = 1.5; U_mean = (2/3)*U_max;
 D = 2*R_cyl; nu = U_mean*D/Re_D; Re = 1/nu;
 f_source = {@(x,y) 0, @(x,y) 0, @(x,y) 0};
 
